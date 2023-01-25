@@ -2,6 +2,7 @@ import sys
 import os
 import pathlib
 from typing import Callable
+from collections import Counter
 
 import torch
 from torch.utils.data import Dataset
@@ -10,7 +11,7 @@ sys.path.append(sys.path.append(abs_path))
 
 from vocab import Vocab
 import config
-from utils import count_words
+from utils import count_words, simple_tokenizer
 """
 # pairDataset 
 init src and tgt and pairs
@@ -31,7 +32,7 @@ class PairDataset(object):
         self.filename  = filename
         self.pairs = []
 
-        with open(filename, 'rt', encoding='utf-8') as f:
+        with open(filename, 'rt', encoding='utf8') as f:
             next(f)
             for i, line in enumerate(f):
                 pair = line.strip().split("<sep>")

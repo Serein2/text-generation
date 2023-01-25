@@ -7,7 +7,7 @@ import jieba
 
 abs_path = pathlib.Path(__file__).parent.absolute()
 sys.path.append(sys.path.append(abs_path))
-from data_utils import write_samplesj, partition
+from data_utils import write_samples, partition
 
 samples = set()
 
@@ -16,7 +16,7 @@ with open(json_path, 'r', encoding='utf8') as file:
     jsf = json.load(file)
 
 for jsobj in jsf.values():
-    tilte = jsobj['title']
+    title = jsobj['title']
     kb = dict(jsobj['kb']).items()
     kb_merged = ''
     for key, val in kb:

@@ -24,7 +24,7 @@ class Vocab(object):
     def add_words(self, words):
         "Add a new token to the vocab"
         for word in words:
-            if word not in word2index:
+            if word not in self.word2index:
                 self.word2index[word] = len(self.word2index)
                 self.index2word.append(word)
         self.word2count.update(words)
