@@ -37,20 +37,18 @@ class Encoder(nn.Module):
 
             return output, hidden
 
+
 class Attention(nn.Module):
     def __init__(self, hidden_units):
         super(Attention, self).__init__()
 
-        self.Wh = nn.Linear(2*hidden_units, 2*hidden_units, bias=False)
-        self.Ws = nn.Linear(2*hidden_units, 2*hidden_units)
+        self.Wh = nn.Linear(2 * hidden_units, 2 * hidden_units, bias=False)
+        self.Ws = nn.Linear(2 * hidden_units, 2 * hidden_units)
+        
 
+        self.v = nn.Linear(2 * hidden_units, 1, bias=False)
 
-        self.v = nn.Linear(2*hidden_units, 1, bias=False)
-    
-    def forward(self,
-                decoder_states,
-                encoder_output,
-                x_padding_masks,
+    def forward(self, decoder_states, encoder_output, x_padding_masks,
                 coverage_vector):
         """Define forward propagation for the attention network.
 
@@ -96,23 +94,21 @@ class Attention(nn.Module):
         normalization_factor = attention_weights.sum(1, keepdim=True)
         attention_weights = attention_weights / normalization_factor
         #(batch_size, 1, 2 * hidden_units)
-        context_vector = torch.bmm(attention_weights.unsqueeze(1), encoder_output)
-        
-        # (batch_size, 2*hidden_units)
-        context_vector= context_vector.squeeze(1)
+        context_vector = torch.bmm(attention_weights.unsqueeze(1),
+                                   encoder_output)
 
+        # (batch_size, 2*hidden_units)
+        context_vector = context_vector.squeeze(1)
 
         return context_vector, attention_weights
-
-        
 
 
 class Decoder(nn.Module):
     def __init__(self,
-                vocab_size,
-                embd_size,
-                hidden_size,
-                enc_hidden_size=None):
+                 vocab_size,
+                 embd_size,
+                 hidden_size,
+                 enc_hidden_size=None):
         super(Decoder, self).__init__()
         self.embedding = nn.Embedding(vocab_size, embd_size)
         self.DEVICE = torch.device('cuda') if is_cuda else torch.device("cpu")
@@ -123,7 +119,6 @@ class Decoder(nn.Module):
 
         self.W1 = nn.Linear(self.hidden_size * 3, self.hidden_size)
         self.W2 = nn.Linear(self.hidden_size, vocab_size)
-
 
     def forward(self, x_t, decoder_states, context_vector):
         """Define forward propagation for the decoder.
@@ -149,7 +144,7 @@ class Decoder(nn.Module):
         """
         # (batch_size embd_size)
         decoder_emb = self.embedding(x_t)
-        # (batch_size, seq_length, hidden_size) 
+        # (batch_size, seq_length, hidden_size)
         decoder_output, decoder_states = self.lstm(decoder_emb, decoder_states)
 
         # (batch_size * seq_length, hidden_size)
@@ -157,9 +152,7 @@ class Decoder(nn.Module):
         decoder_output = decoder_output.view(-1, config.hidden_size)
 
         # concatenate context vector and decoder state
-        concat_vector = torch.cat(
-            [decoder_output, concat_vector],
-            dim=-1)
+        concat_vector = torch.cat([decoder_output, concat_vector], dim=-1)
         # calculate vocablary distribution
         # (batch_size, hidden_units)
         FF1_out = self.W1(concat_vector)
@@ -167,23 +160,10 @@ class Decoder(nn.Module):
         FF2_out = self.W2(FF1_out)
         # (batch_size, vocab_size)
         p_vocab = F.softmax(FF2_out, dim=1)
-        
+
         # Concatenate h and c to get s_t and expand the dim of s_t
         h_dec, c_dec = decoder_states
         # (1, batch_size, 2 * hidden_units)
         s_t = torch.cat([h_dec, c_dec], dim=2)
 
         return p_vocab, decoder_states
-
-
-
-
-
-
-
-
-
-
-
-
-
