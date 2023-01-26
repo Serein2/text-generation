@@ -10,7 +10,6 @@ abs_path = pathlib.Path(__file__).parent.absolute()
 sys.path.append(sys.path.append(abs_path))
 
 import config
-from utils import timer, replace_oovs
 
 
 class Encoder(nn.Module):
@@ -22,20 +21,20 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()
         self.embedding = nn.Embedding(vocab_size, embd_size)
         self.hidden_size = hidden_size
-        self.lstm = nn.LSTM(embed_size,
+        self.lstm = nn.LSTM(embd_size,
                             hidden_size,
                             bidirectional=True,
                             dropout=rnn_drop,
                             batch_first=True)
 
-        def forward(self, x):
-            """
-             x (Tensor): The input samples as shape (batch_size, seq_len)
-            """
-            embedded = self.embedding(x)
-            output, hidden = self.lstm(embedded)
+    def forward(self, x):
+        """
+         x (Tensor): The input samples as shape (batch_size, seq_len)
+        """
+        embedded = self.embedding(x)
+        output, hidden = self.lstm(embedded)
 
-            return output, hidden
+        return output, hidden
 
 
 class Attention(nn.Module):
@@ -49,7 +48,7 @@ class Attention(nn.Module):
         self.v = nn.Linear(2 * hidden_units, 1, bias=False)
 
     def forward(self, decoder_states, encoder_output, x_padding_masks,
-                coverage_vector):
+                coverage_vector=None):
         """Define forward propagation for the attention network.
 
         Args:
@@ -75,10 +74,12 @@ class Attention(nn.Module):
         """
         # Concatenate h and c
         h_dec, c_dec = decoder_states
+        print(h_dec.shape, c_dec.shape)
         # (1, batch_size, , 2 * hidden_units)
         s_t = torch.cat([h_dec, c_dec], dim=2)
         # (batch_size, 1, 2 * hidden_units)
         s_t = s_t.transpose(0, 1)
+        print(encoder_output.shape, s_t.shape)
         # (batch_size, seq_length, 2*hidden_units)
         s_t = s_t.expand_as(encoder_output).contiguous()
 
@@ -111,7 +112,7 @@ class Decoder(nn.Module):
                  enc_hidden_size=None):
         super(Decoder, self).__init__()
         self.embedding = nn.Embedding(vocab_size, embd_size)
-        self.DEVICE = torch.device('cuda') if is_cuda else torch.device("cpu")
+        self.DEVICE = torch.device('cuda') if config.is_cuda else torch.device("cpu")
         self.vocab_size = vocab_size
         self.hidden_size = hidden_size
 

@@ -69,3 +69,24 @@ def abstract2ids(abstract_words, vocab, source_oovs):
             ids.append(i)
     return ids
         
+def sort_batch_by_len(data_batch):
+    res = {
+        'x': [],
+        'y': [],
+        'x_len': [],
+        'y_len': [],
+        'OOV': [],
+        'len_OOV':[]}
+    for i in range(len(data_batch)):
+        res['x'].append(data_batch[i]['x'])
+        res['y'].append(data_batch[i]['y'])
+        res['x_len'].append(len(data_batch[i]['x']))
+        res['y_len'].append(len(data_batch[i]['y']))
+        res['OOV'].append(data_batch[i]['OOV'])
+        res['len_OOV'].append(data_batch[i]['len_OOV'])
+        sorted_indices = np.array(res['x_len']).argsort()[::-1].tolist()
+    data_batch = {
+            name: [_tensor[i] for i in sorted_indices]
+            for name, _tensor in res.items()
+    }
+    return data_batch

@@ -12,7 +12,8 @@ sys.path.append(sys.path.append(abs_path))
 
 from vocab import Vocab
 import config
-from utils import count_words, simple_tokenizer, source2ids, abstract2ids
+from utils import count_words, simple_tokenizer, \
+                    source2ids, abstract2ids, sort_batch_by_len
 """
 # pairDataset 
 init src and tgt and pairs
@@ -78,23 +79,51 @@ class SimpleDataset(Dataset):
         self.src_sents = [x[0] for x in pairs]
         self.tgt_sents = [x[1] for x in pairs]
         self.vocab = vocab
+        self._len = len(pairs)
         
     
     def __len__(self):
-        return len(self.pairs)
+        return self._len
     
     def __getitem__(self, item):
         x, oov = source2ids(self.src_sents[item], self.vocab)
-        return {
+        return{
             'x': [self.vocab.SOS] + x + [self.vocab.EOS],
             'OOV': oov,
             'len_OOV': len(oov),
+
             'y': [self.vocab.SOS] +
             abstract2ids(self.tgt_sents[item],
             self.vocab, oov) + [self.vocab.EOS],
             'x_len': len(self.src_sents[item]),
             'y_len': len(self.tgt_sents[item])
         }
+    
+def collate_fn(batch):
+    def padding(indice, max_length, pad_idx = 0):
+        pad_indice = torch.tensor([x + [pad_idx] * max(0, max_length - len(x))
+        for x in indice])
+        return pad_indice
+
+    data_batch = sort_batch_by_len(batch)
+    x = data_batch['x']
+    x_max_length = max([len(t) for t in x])
+    y = data_batch['y']
+    y_max_length = max([len(t) for t in y])
+
+    OOV = data_batch['OOV']
+    len_OOV = torch.tensor(data_batch['len_OOV'])
+
+    x_padded = padding(x, x_max_length)
+    y_padded = padding(y, y_max_length)
+
+    x_len = torch.tensor(data_batch['x_len'])
+    y_len = torch.tensor(data_batch['y_len'])
+
+    return x_padded, y_padded, x_len, y_len, OOV, len_OOV
+
+
+
 
 
 
