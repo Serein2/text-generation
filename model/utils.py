@@ -54,3 +54,18 @@ def outputids2words(id_list, source_oovs, vocab):
                 raise ValueError("ERROR ID can't find OOV")
         words.append(w)
     return " ".join(words)
+
+def abstract2ids(abstract_words, vocab, source_oovs):
+    unk_id = vocab.UNK
+    ids = []
+    for word in abstract_words:
+        i = vocab[word]
+        if i == unk_id:
+            if word in source_oovs:
+                ids.append(source_oovs.index(word) + vocab.size())
+            else:
+                ids.append(unk_id)
+        else:
+            ids.append(i)
+    return ids
+        
