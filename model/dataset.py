@@ -3,6 +3,7 @@ import os
 import pathlib
 from typing import Callable
 from collections import Counter
+from torch.utils.data import Dataset
 
 import torch
 from torch.utils.data import Dataset
@@ -70,6 +71,32 @@ class PairDataset(object):
             print("%d pre-trained embeddings loaded." % count)
         
         return vocab
+    
+
+class SimpleDataset(Dataset):
+    def __init__(self, pairs, vocab):
+        self.src_sents = [x[0] for x in pairs]
+        self.tgt_sents = [x[1] for x in pairs]
+        self.vocab = vocab
+        
+    
+    def __len__(self):
+        return len(self.pairs)
+    
+    def __getitem__(self, item):
+        return {
+            'x': [self.vocab.SOS] + x + [self.vocab.EOS],
+            'OOV': oov,
+            'len_OOV': len(oov),
+            'y': [self.vocab.SOS] +
+            abstract2ids(self.tgt_sents[item],
+            self.vocab, oov) + [self.vocab.EOS],
+            'x_len': len(self.src_sents[item]),
+            'y_len': len(self.tgt_sents[item])
+        }
+
+
+
 
 
 
