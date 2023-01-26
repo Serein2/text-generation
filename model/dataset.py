@@ -12,7 +12,7 @@ sys.path.append(sys.path.append(abs_path))
 
 from vocab import Vocab
 import config
-from utils import count_words, simple_tokenizer
+from utils import count_words, simple_tokenizer, source2ids, abstract2ids
 """
 # pairDataset 
 init src and tgt and pairs
@@ -84,6 +84,7 @@ class SimpleDataset(Dataset):
         return len(self.pairs)
     
     def __getitem__(self, item):
+        x, oov = source2ids(self.src_sents[item], self.vocab)
         return {
             'x': [self.vocab.SOS] + x + [self.vocab.EOS],
             'OOV': oov,
