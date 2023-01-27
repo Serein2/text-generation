@@ -15,13 +15,13 @@ import config
 class Encoder(nn.Module):
     def __init__(self,
                  vocab_size,
-                 embd_size,
+                 embed_size,
                  hidden_size,
                  rnn_drop: float = 0):
         super(Encoder, self).__init__()
-        self.embedding = nn.Embedding(vocab_size, embd_size)
+        self.embedding = nn.Embedding(vocab_size, embed_size)
         self.hidden_size = hidden_size
-        self.lstm = nn.LSTM(embd_size,
+        self.lstm = nn.LSTM(embed_size,
                             hidden_size,
                             bidirectional=True,
                             dropout=rnn_drop,
@@ -47,8 +47,7 @@ class Attention(nn.Module):
 
         self.v = nn.Linear(2 * hidden_units, 1, bias=False)
 
-    def forward(self, decoder_states, encoder_output, x_padding_masks,
-                coverage_vector=None):
+    def forward(self, decoder_states, encoder_output, x_padding_masks):
         """Define forward propagation for the attention network.
 
         Args:
@@ -107,19 +106,21 @@ class Attention(nn.Module):
 class Decoder(nn.Module):
     def __init__(self,
                  vocab_size,
-                 embd_size,
+                 embed_size,
                  hidden_size,
                  enc_hidden_size=None):
         super(Decoder, self).__init__()
-        self.embedding = nn.Embedding(vocab_size, embd_size)
+        self.embedding = nn.Embedding(vocab_size, embed_size)
         self.DEVICE = torch.device('cuda') if config.is_cuda else torch.device("cpu")
         self.vocab_size = vocab_size
         self.hidden_size = hidden_size
 
-        self.lstm = nn.LSTM(embd_size, hidden_size, batch_first=True)
+        self.lstm = nn.LSTM(embed_size, hidden_size, batch_first=True)
 
         self.W1 = nn.Linear(self.hidden_size * 3, self.hidden_size)
         self.W2 = nn.Linear(self.hidden_size, vocab_size)
+        if config.pointer:
+            self.w_gen = nn.Linear(self.hidden_size * 4 + embed_size, 1)
 
     def forward(self, x_t, decoder_states, context_vector):
         """Define forward propagation for the decoder.
@@ -143,7 +144,7 @@ class Decoder(nn.Module):
             p_gen (Tensor):
                 The generation probabilities of shape (batch_size, 1).
         """
-        # (batch_size embd_size)
+        # (batch_size,seq_length, embed_size)
         decoder_emb = self.embedding(x_t)
         # (batch_size, seq_length, hidden_size)
         decoder_output, decoder_states = self.lstm(decoder_emb, decoder_states)
@@ -167,4 +168,15 @@ class Decoder(nn.Module):
         # (1, batch_size, 2 * hidden_units)
         s_t = torch.cat([h_dec, c_dec], dim=2)
 
-        return p_vocab, decoder_states
+        p_gen = None
+        if config.pointer:
+            x_gen = torch.cat([
+                context_vector,
+                s_t.squeeze(0),
+                decoder_emb.squeeze(1)
+            ], dim=-1)
+
+            p_gen = torch.sigmoid(self.w_gen(x_gen))
+
+
+        return p_vocab, decoder_states, p_gen
