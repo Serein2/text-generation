@@ -5,6 +5,8 @@ import pathlib
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import config
+from utils import repalce_oovs
 
 abs_path = pathlib.Path(__file__).parent.absolute()
 sys.path.append(sys.path.append(abs_path))
@@ -213,4 +215,157 @@ class ReduceState(nn.Module):
 
 
 
+class PGN(nn.Module):
+    def __init__(self, v):
+        super(PGN, self).__init__()
+        self.v = v
+        self.DEVICE = config.DEVICE
+        self.attention = Attention(config.hidden_size)
+        self.encoder = Encoder(
+            len(v), 
+            config.embed_size, 
+            config.hidden_size
+            )
+        self.decoder = Decoder(
+            len(v), 
+            config.embed_size,
+            config.hidden_size)
         
+        self.reduce_state = ReduceState()
+
+    def load_model(self):
+        pass
+
+
+    def get_final_distribution(self, x, p_gen, p_vocab, attention_weights,
+                               max_oov):
+        """Calculate the final distribution for the model.
+
+        Args:
+            x: (batch_size, seq_len)
+            p_gen: (batch_size, 1)
+            p_vocab: (batch_size, vocab_size)
+            attention_weights: (batch_size, seq_len)
+            max_oov: (Tensor or int): The maximum sequence length in the batch.
+
+        Returns:
+            final_distribution (Tensor):
+            The final distribution over the extended vocabualary.
+            The shape is (batch_size, )
+        """
+        if not config.pointer:
+            return p_vocab
+        
+        batch_size = x.size()[0]
+
+        # clip the probalilities
+        p_gen = torch.clamp(p_gen, 0.001, 0.999)
+
+        # Get the weighted probalities
+        # Refer to equation (9).
+        p_vocab_weighted = p_gen * p_vocab
+        #(batch_size, seq_len)
+        attention_weighted = (1 - p_gen) * attention_weights
+
+        #extended_size = len(self.v) + max_oovs
+        extension = torch.zeros((batch_size, max_oov)).float().to(self.DEVICE)
+        #(batch_size, extended_vocab_size)
+        p_vocab_extended = torch.cat([p_vocab_weighted, extension], dim=1)
+
+        # Add the attention weights to the corresponding vocab positions.
+        # Refer to equation (9).
+        final_distribution = \
+            p_vocab_extended.scatter_add(dim=1,
+                                            index=1, src=attention_weighted)
+        
+        return final_distribution
+
+    def forward(self, x, x_len, y, len_oovs, batch, num_batches):
+        """Define the forward propagation for the seq2seq model.
+
+        Args:
+            x (Tensor):
+                Input sequences as source with shape (batch_size, seq_len)
+            x_len ([int): Sequence length of the current batch.
+            y (Tensor):
+                Input sequences as reference with shape (bacth_size, y_len)
+            len_oovs (Tensor):
+                The numbers of out-of-vocabulary words for samples in this batch.
+            batch (int): The number of the current batch.
+            num_batches(int): Number of batches in the epoch.
+
+        Returns:
+            batch_loss (Tensor): The average loss of the current batch.
+        """
+        x_copy = repalce_oovs(x, self.v)
+        x_padding_masks = torch.ne(x, 0).byte().float()
+        encoder_output, encoder_states = self.encoder(x_copy)
+        # Reduce encoder hidden states
+        decoder_states = self.reduce_state(encoder_states)
+        # Initialize coverage vector
+        coverage_vector = torch.zeros(x.size()).to(self.DEVICE)
+        step_losses = []
+        # Calculate loss for every step
+        for t in range(y.shape[1] - 1):
+            # Do teacher forcing
+            x_t = y[:, t]
+            x_t = repalce_oovs(x_t, self.v)
+
+            y_t = y[:, t+1]
+            # Get context vector from attention network
+            context_vector, attention_weights, coverage_vector = \
+                self.attention(decoder_states, 
+                               encoder_output, 
+                               x_padding_masks,
+                               coverage_vector)
+            # Get vocab distribution and hidden states from the decoder.
+            p_vocab, decoder_states, p_gen = self.decoder(
+                x_t.unsqueeze(1),
+                decoder_states,
+                context_vector)
+            final_dist = self.get_final_distribution(x,
+                                                     p_gen, 
+                                                     p_vocab, 
+                                                     attention_weights, 
+                                                     torch.max(len_oovs))
+            if not config.pointer:
+                y_t = repalce_oovs(y_t, self.v)
+            
+            target_probs = torch.gather(final_dist, 1, y_t.unsqueeze(1))
+            target_probs = target_probs.squeeze(1)
+
+            # Apply a mask such that pad zeros do not affect the loss
+            mask = torch.ne(y_t, 0).byte().float()
+            # Do smoothing to prevent getting NaN loss because of log(0).
+            # bs 
+            loss = -torch.log(target_probs + config.eps)
+
+            if config.coverage:
+                ct_min = torch.min(attention_weights, coverage_vector)
+
+            loss = loss * mask
+
+            step_losses.append(loss)
+        sample_losses = torch.sum(torch.stack(step_losses, 1), 1)
+
+        seq_len_mask = torch.ne(y, 0).byte().float()
+        # batch_size
+        batch_seq_len = torch.sum(seq_len_mask, dim=1)
+        batch_loss = torch.mean(sample_losses / batch_seq_len)
+        return batch_loss
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
