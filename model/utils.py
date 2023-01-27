@@ -24,6 +24,13 @@ def simple_tokenizer(text):
     return text.split()
 
 
+def repalce_oovs(x, vocab):
+    oov_token = torch.full(x.shape, vocab.UNK).long.to(config.DEVICE)
+    x = torch.where(x >= vocab.size(), oov_token, x)
+    return x
+
+
+
 def source2ids(source_words, vocab):
     unk = vocab['<UNK>']
     ids, oovs = [], []
