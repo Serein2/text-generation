@@ -180,3 +180,37 @@ class Decoder(nn.Module):
 
 
         return p_vocab, decoder_states, p_gen
+
+
+class ReduceState(nn.Module):
+    """
+    Since the encoder has a bidirectional LSTM layer while the decoder has a
+    unidirectional LSTM layer, we add this module to reduce the hidden states
+    output by the encoder (merge two directions) before input the hidden states
+    nto the decoder.
+    """
+    def __init__(self):
+        super(ReduceState, self).__init__()
+
+    def forward(self, hidden):
+        """The forward propagation of reduce state module.
+
+        Args:
+            hidden (tuple):
+                Hidden states of encoder,
+                each with shape (2, batch_size, hidden_units).
+
+        Returns:
+            tuple:
+                Reduced hidden states,
+                each with shape (1, batch_size, hidden_units).
+        """
+        h, c = hidden
+        h_reduced = torch.sum(h, dim=0, keepdim=True)
+        c_reduced = torch.sum(c, dim=0, keepdim=True)
+
+        return (h_reduced, c_reduced)
+
+
+
+        
