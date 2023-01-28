@@ -6,5 +6,6 @@ is_cuda =  False
 embed_size: int = 300
 pointer = True
 eps = 1e-31
+LAMBDA = 1
 # Data
 max_vocab_size = 20000
