@@ -7,5 +7,9 @@ embed_size: int = 300
 pointer = True
 eps = 1e-31
 LAMBDA = 1
+learning_rate = 0.001
+epochs = 8
+max_grad_norm = 2.0
+batch_size = 8
 # Data
 max_vocab_size = 20000
