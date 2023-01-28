@@ -46,10 +46,11 @@ class Attention(nn.Module):
         self.Wh = nn.Linear(2 * hidden_units, 2 * hidden_units, bias=False)
         self.Ws = nn.Linear(2 * hidden_units, 2 * hidden_units)
         
-
+        # wc for coverage feature
+        self.wc = nn.Linear(1, 2*hidden_units, bias=False)
         self.v = nn.Linear(2 * hidden_units, 1, bias=False)
 
-    def forward(self, decoder_states, encoder_output, x_padding_masks):
+    def forward(self, decoder_states, encoder_output, x_padding_masks, coverage_vector):
         """Define forward propagation for the attention network.
 
         Args:
@@ -75,18 +76,26 @@ class Attention(nn.Module):
         """
         # Concatenate h and c
         h_dec, c_dec = decoder_states
-        print(h_dec.shape, c_dec.shape)
+        
         # (1, batch_size, , 2 * hidden_units)
         s_t = torch.cat([h_dec, c_dec], dim=2)
         # (batch_size, 1, 2 * hidden_units)
         s_t = s_t.transpose(0, 1)
-        print(encoder_output.shape, s_t.shape)
+        
         # (batch_size, seq_length, 2*hidden_units)
         s_t = s_t.expand_as(encoder_output).contiguous()
 
         encoder_features = self.Wh(encoder_output.contiguous())
         decoder_features = self.Ws(s_t)
         att_inputs = encoder_features + decoder_features
+        
+        # Add coverage feature
+        if config.coverage:
+            # bs seq_len  -> bs seq_len hidden_units
+            coverage_feature = self.wc(coverage_vector.unsqueeze(2))
+            att_inputs = att_inputs + coverage_feature
+
+        
         score = self.v(torch.tanh(att_inputs))
 
         attention_weights = F.softmax(score, dim=1).squeeze(2)
@@ -101,8 +110,10 @@ class Attention(nn.Module):
 
         # (batch_size, 2*hidden_units)
         context_vector = context_vector.squeeze(1)
+        if config.coverage:
+            coverage_vector = coverage_vector + attention_weights
 
-        return context_vector, attention_weights
+        return context_vector, attention_weights, coverage_vector
 
 
 class Decoder(nn.Module):
@@ -342,6 +353,8 @@ class PGN(nn.Module):
 
             if config.coverage:
                 ct_min = torch.min(attention_weights, coverage_vector)
+                cov_loss = torch.sum(ct_min, dim=1)
+                loss = loss + config.LAMBDA * cov_loss
 
             loss = loss * mask
 
@@ -351,7 +364,8 @@ class PGN(nn.Module):
         seq_len_mask = torch.ne(y, 0).byte().float()
         # batch_size
         batch_seq_len = torch.sum(seq_len_mask, dim=1)
-        batch_loss = torch.mean(sample_losses / batch_seq_len)
+        batch_loss = torch.mean(sample_losses / batch_seq_len)  
+
         return batch_loss
 
 
