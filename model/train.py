@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 import torch
 from torch.nn.utils import clip_grad_norm
 from tqdm import tqdm
+from evaluate import evaluate
 from model import PGN
 
 abs_path = pathlib.Path(__file__).parent.absolute()
@@ -87,6 +88,40 @@ def train(dataset, val_dataset, v, start_epoch = 0):
             epoch_progress.set_description(f'Epoch {epoch}')
             epoch_progress.set_postfix(Loss=epoch_loss)
             epoch_progress.update()
+            
+            avg_val_loss = evaluate(model, val_data, epoch)
+            print('training loss:{}'.format(epoch_loss),
+                  'validation loss:{}'.format(avg_val_loss))
+
+
+            if avg_val_loss < val_losses:
+                torch.save(model.encoder, config.encoder_save_name)
+                torch.save(model.decoder, config.decoder_save_name)
+                torch.save(model.reduce_state, config.reduce_state_save_name)
+                torch.save(model.attention, config.attention_save_name)
+                with open(config.losses_path, 'wb') as f:
+                    pickle.dump(val_losses, f)
+
+
+
+if __name__ == '__main__':
+    DEVICE = torch.device('cuda') if config.is_cuda else torch.device('cpu')
+    dataset = PairDataset(config.data_path,
+                          max_src_len=config.max_src_len,
+                          max_tgt_len=config.max_tgt_len,
+                          truncate_src=config.truncate_src,
+                          truncate_tgt=config.truncate_tgt)
+    val_dataset = PairDataset(config.val_data_path,
+                              max_src_len=config.max_src_len,
+                              max_tgt_len=config.max_tgt_len,
+                              truncate_src=config.truncate_src,
+                              truncate_tgt=config.truncate_tgt)
+
+    vocab = dataset.build_vocab(embed_file=config.embed_file)
+
+    train(dataset, val_dataset, vocab, start_epoch=0)
+
+
 
 
 
