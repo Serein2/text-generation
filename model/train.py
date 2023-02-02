@@ -24,13 +24,13 @@ def train(dataset, val_dataset, v, start_epoch = 0):
     DEVICE = torch.device('cuda' if config.is_cuda else 'cpu')
 
     model = PGN(v)
-    model.load_model()
-
+    # model.load_model()
+    model.to(DEVICE)
 
     # forward
     print("loading data")
     train_data = SimpleDataset(dataset.pairs, v)
-    val_data = SimpleDataset(val_data.pairs, v)
+    val_data = SimpleDataset(val_dataset.pairs, v)
 
     print("initializing optimizer")
 
@@ -64,16 +64,16 @@ def train(dataset, val_dataset, v, start_epoch = 0):
                     optimizer.zero_grad()
                     
                     loss = model(x, x_len, y, len_oovs, batch=batch, num_batches=num_batches)
-                    batch_losses.append(loos.item())
+                    batch_losses.append(loss.item())
 
                     loss.backward()
 
                     # Do gradient clipping to prevent gradient explosion.
-                    clip_grad_norm_(model.encoder.parameters(),
+                    clip_grad_norm(model.encoder.parameters(),
                                     config.max_grad_norm)
-                    clip_grad_norm_(model.decoder.parameters(),
+                    clip_grad_norm(model.decoder.parameters(),
                                     config.max_grad_norm)
-                    clip_grad_norm_(model.attention.parameters(),
+                    clip_grad_norm(model.attention.parameters(),
                                     config.max_grad_norm)
 
                     optimizer.step()

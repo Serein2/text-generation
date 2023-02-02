@@ -57,7 +57,7 @@ class PairDataset(object):
                 self.pairs.append((src, tgt))
         print("%d paris." % len(self.pairs))
 
-    def bulid_vocab(self, embed_file: str=None) -> Vocab:
+    def build_vocab(self, embed_file: str=None) -> Vocab:
         word_counts = Counter()
         """
         count words and build vocab

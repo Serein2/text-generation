@@ -12,7 +12,13 @@ abs_path = pathlib.Path(__file__).parent.absolute()
 sys.path.append(sys.path.append(abs_path))
 
 import config
-
+"""
+Encoder output hidden
+Reduce_state hidden
+Attention encoder_states, encoder_output, x_t, xpadding_masks return context_vector coverage_vector, attentionweights
+Decoder context_vector, decoder_states return p_vocab p_gen decoder_states
+PGN 
+"""
 
 class Encoder(nn.Module):
     def __init__(self,
@@ -167,7 +173,7 @@ class Decoder(nn.Module):
         decoder_output = decoder_output.view(-1, config.hidden_size)
 
         # concatenate context vector and decoder state
-        concat_vector = torch.cat([decoder_output, concat_vector], dim=-1)
+        concat_vector = torch.cat([decoder_output, context_vector], dim=-1)
         # calculate vocablary distribution
         # (batch_size, hidden_units)
         FF1_out = self.W1(concat_vector)
@@ -301,7 +307,7 @@ class PGN(nn.Module):
         # Refer to equation (9).
         final_distribution = \
             p_vocab_extended.scatter_add(dim=1,
-                                            index=1, src=attention_weighted)
+                                            index=x, src=attention_weighted)
         
         return final_distribution
 
