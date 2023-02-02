@@ -245,7 +245,21 @@ class PGN(nn.Module):
         self.reduce_state = ReduceState()
 
     def load_model(self):
-        pass
+        if (os.path.exists(config.encoder_save_name)):
+            print('Loading model: ', config.encoder_save_name)
+            self.encoder = torch.load(config.encoder_save_name)
+            self.decoder = torch.load(config.decoder_save_name)
+            self.attention = torch.load(config.attention_save_name)
+            self.reduce_state = torch.load(config.reduce_state_save_name)
+
+        elif config.fine_tune:
+            print('Loading model: ', '../saved_model/pgn/encoder.pt')
+            self.encoder = torch.load('../saved_model/pgn/encoder.pt')
+            self.decoder = torch.load('../saved_model/pgn/decoder.pt')
+            self.attention = torch.load('../saved_model/pgn/attention.pt')
+            self.reduce_state = torch.load('../saved_model/pgn/reduce_state.pt')
+
+
 
 
     def get_final_distribution(self, x, p_gen, p_vocab, attention_weights,
